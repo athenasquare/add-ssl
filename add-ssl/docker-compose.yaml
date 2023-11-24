@@ -1,0 +1,62 @@
+version: "3"
+
+
+services:
+  backend:
+    image: athena2020/athenasquare-backend-springboot-dev:latest
+    logging:
+        driver: "json-file"
+        options:
+            max-file: "2"
+            max-size: "2m"
+    container_name: athenasquare-api
+    environment:
+      - users=${USERS}
+    ports:
+      - "8080:8080"
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 2
+      restart_policy:
+        condition: on-failure
+
+  react:
+    container_name: react_app
+    image: athena2020/athenasquare-frontend-dev:latest
+    restart: always
+    environment:
+      - REACT_APP_BACKEND_URL=https://getdash.live/api
+    ports:
+      - "3000:3000"
+    command:
+      "yarn start"
+      #depends_on:
+      #- nginx
+
+  nginx:
+    image: nginx:1.13
+    container_name: nginx_proxy
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    ports:
+      - "80:80"
+      - "443:443"
+        #- "127.0.0.1:80:80"
+    volumes:
+      - ./data/nginx:/etc/nginx/conf.d
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    depends_on:
+      - backend
+      - react
+    # extra_hosts:
+      # - "host.docker.internal:192.168.1.6"
+
+  certbot:
+    image: certbot/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+
+
